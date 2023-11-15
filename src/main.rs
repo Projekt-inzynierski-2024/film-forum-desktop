@@ -1,8 +1,8 @@
-use iced::widget::{column, container, row, scrollable, text_input};
-use iced::{Application, Command, Length, Settings, Theme};
+mod models;
 
-use reqwest;
-use serde::Deserialize;
+use iced::widget::{column, scrollable, text_input};
+use iced::{Application, Command, Length, Settings, Theme};
+use models::{ApiError, Film};
 
 fn main() -> iced::Result {
     FilmForum::run(Settings::default())
@@ -13,18 +13,6 @@ struct FilmForum {
     films: Vec<Film>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Film {
-    id: String,
-    title: String,
-    description: String,
-    is_movie: bool,
-}
-
-#[derive(Debug, Clone)]
-enum ApiError {}
-
 #[derive(Debug, Clone)]
 enum Message {
     FilmsFound(Result<Vec<Film>, ApiError>),
@@ -33,11 +21,8 @@ enum Message {
 
 impl Application for FilmForum {
     type Executor = iced::executor::Default;
-
     type Message = Message;
-
     type Theme = Theme;
-
     type Flags = ();
 
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
@@ -82,23 +67,5 @@ impl Application for FilmForum {
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
-    }
-}
-
-impl Film {
-    async fn search(query: String) -> Result<Vec<Film>, ApiError> {
-        let url = format!("http://127.0.0.1:5105/api/film/search/{query}");
-        let films_result = match reqwest::get(url).await {
-            Ok(response) => match response.text().await {
-                Ok(content) => {
-                    let films: Vec<Film> = serde_json::from_str(content.as_str()).unwrap_or(vec![]);
-                    films
-                }
-                Err(_) => vec![],
-            },
-            Err(_) => vec![],
-        };
-
-        Ok(films_result)
     }
 }
