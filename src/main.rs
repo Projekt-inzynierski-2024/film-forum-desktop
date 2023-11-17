@@ -1,13 +1,19 @@
-mod models;
+mod client;
 
 use iced::widget::{button, column, scrollable, text_input};
 use iced::{Application, Command, Element, Length, Settings, Theme};
 
-use models::film::{Film, SearchError};
-use models::user::{LoginError, LoginResult, User};
+use client::models::film::{Film, SearchError};
+use client::models::user::{LoginError, LoginResult};
 
 fn main() -> iced::Result {
     FilmForum::run(Settings::default())
+}
+
+#[derive(Debug, Clone)]
+struct LoginData {
+    email: String,
+    password: String,
 }
 
 struct Pages {
@@ -21,7 +27,8 @@ impl Pages {
             current: 0,
             pages: vec![
                 Page::Login {
-                    user: User::empty(),
+                    email: String::new(),
+                    password: String::new(),
                 },
                 Page::Search {
                     query: String::new(),
@@ -41,7 +48,7 @@ impl Pages {
 }
 
 enum Page {
-    Login { user: User },
+    Login { email: String, password: String },
     Search { query: String, films: Vec<Film> },
 }
 
@@ -60,19 +67,22 @@ impl Page {
                     *query = text_query.clone();
                 }
 
-                Command::perform(Film::search(text_query), PageMessage::SearchFound)
+                Command::perform(client::search(text_query), PageMessage::SearchFound)
             }
-            PageMessage::Login => todo!(),
-            PageMessage::Email(email) => {
-                if let Page::Login { user } = self {
-                    user.email = email
+            PageMessage::Login(data) => Command::perform(
+                client::login(data.email, data.password),
+                PageMessage::LoggedIn,
+            ),
+            PageMessage::Email(_email) => {
+                if let Page::Login { email, .. } = self {
+                    *email = _email;
                 }
 
                 Command::none()
             }
-            PageMessage::Password(password) => {
-                if let Page::Login { user } = self {
-                    user.password = password;
+            PageMessage::Password(_password) => {
+                if let Page::Login { password, .. } = self {
+                    *password = _password;
                 }
 
                 Command::none()
@@ -86,10 +96,15 @@ impl Page {
 
     fn view(&self) -> Element<PageMessage> {
         match self {
-            Page::Login { user } => column![
-                text_input("Email", &user.email).on_input(PageMessage::Email),
-                text_input("Password", &user.password).on_input(PageMessage::Password),
-                button("Login").on_press(PageMessage::Login)
+            Page::Login { email, password } => column![
+                text_input("Email", &email).on_input(PageMessage::Email),
+                text_input("Password", &password)
+                    .password()
+                    .on_input(PageMessage::Password),
+                button("Login").on_press(PageMessage::Login(LoginData {
+                    email: email.clone(),
+                    password: password.clone()
+                }))
             ]
             .into(),
             Page::Search { query, films } => {
@@ -110,7 +125,7 @@ impl Page {
 enum PageMessage {
     SearchFound(Result<Vec<Film>, SearchError>),
     Search(String),
-    Login,
+    Login(LoginData),
     LoggedIn(Result<LoginResult, LoginError>),
     Email(String),
     Password(String),
