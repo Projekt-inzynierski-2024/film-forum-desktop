@@ -1,9 +1,6 @@
 pub mod film {
     use serde::Deserialize;
 
-    #[derive(Debug, Clone)]
-    pub enum SearchError {}
-
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct Film {
@@ -15,16 +12,13 @@ pub mod film {
 }
 
 pub mod user {
-    use serde::{Deserialize, Serialize};
+    use serde::Deserialize;
 
-    #[derive(Debug, Clone)]
-    pub enum LoginError {}
-
-    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct LoginResult {
         pub id: i32,
         pub username: String,
-        pub jwt_token: String,
+        pub jwt: String,
     }
 }

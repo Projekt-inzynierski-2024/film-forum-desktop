@@ -3,8 +3,10 @@ mod client;
 use iced::widget::{button, column, scrollable, text_input};
 use iced::{Application, Command, Element, Length, Settings, Theme};
 
-use client::models::film::{Film, SearchError};
-use client::models::user::{LoginError, LoginResult};
+use client::models::film::Film;
+use client::models::user::LoginResult;
+
+use client::{LoginError, SearchError};
 
 fn main() -> iced::Result {
     FilmForum::run(Settings::default())
@@ -16,6 +18,14 @@ struct LoginData {
     password: String,
 }
 
+#[derive(Debug, Clone)]
+struct RegisterData {
+    username: String,
+    email: String,
+    password: String,
+    confirm_password: String,
+}
+
 struct Pages {
     pages: Vec<Page>,
     current: usize,
@@ -24,11 +34,17 @@ struct Pages {
 impl Pages {
     fn new() -> Pages {
         Pages {
-            current: 0,
+            current: 1,
             pages: vec![
                 Page::Login {
                     email: String::new(),
                     password: String::new(),
+                },
+                Page::Register {
+                    username: String::new(),
+                    email: String::new(),
+                    password: String::new(),
+                    confirm_password: String::new(),
                 },
                 Page::Search {
                     query: String::new(),
@@ -48,8 +64,20 @@ impl Pages {
 }
 
 enum Page {
-    Login { email: String, password: String },
-    Search { query: String, films: Vec<Film> },
+    Login {
+        email: String,
+        password: String,
+    },
+    Register {
+        username: String,
+        email: String,
+        password: String,
+        confirm_password: String,
+    },
+    Search {
+        query: String,
+        films: Vec<Film>,
+    },
 }
 
 impl Page {
@@ -76,6 +104,8 @@ impl Page {
             PageMessage::Email(_email) => {
                 if let Page::Login { email, .. } = self {
                     *email = _email;
+                } else if let Page::Register { email, .. } = self {
+                    *email = _email;
                 }
 
                 Command::none()
@@ -83,12 +113,64 @@ impl Page {
             PageMessage::Password(_password) => {
                 if let Page::Login { password, .. } = self {
                     *password = _password;
+                } else if let Page::Register { password, .. } = self {
+                    *password = _password;
                 }
 
                 Command::none()
             }
             PageMessage::LoggedIn(result) => {
-                println!("TOKEN: {}", result.unwrap().jwt_token);
+                match result {
+                    Ok(data) => {
+                        println!("JWT: {}", data.jwt);
+                    }
+                    Err(LoginError::CredentialsError(field)) => {
+                        println!("{}", field);
+                    }
+                    Err(LoginError::ConnectionError) => {
+                        println!("Connection problem...");
+                    }
+                };
+
+                Command::none()
+            }
+            PageMessage::Username(_username) => {
+                if let Page::Register { username, .. } = self {
+                    *username = _username;
+                }
+                Command::none()
+            }
+            PageMessage::ConfirmPassword(_confirm_password) => {
+                if let Page::Register {
+                    confirm_password, ..
+                } = self
+                {
+                    *confirm_password = _confirm_password;
+                }
+                Command::none()
+            }
+            PageMessage::Register(data) => Command::perform(
+                client::register(
+                    data.username,
+                    data.email,
+                    data.password,
+                    data.confirm_password,
+                ),
+                PageMessage::Registered,
+            ),
+            PageMessage::Registered(result) => {
+                match result {
+                    Ok(data) => {
+                        println!("JWT: {}", data.jwt);
+                    }
+                    Err(LoginError::CredentialsError(field)) => {
+                        println!("{}", field);
+                    }
+                    Err(LoginError::ConnectionError) => {
+                        println!("Connection problem...");
+                    }
+                };
+
                 Command::none()
             }
         }
@@ -104,6 +186,28 @@ impl Page {
                 button("Login").on_press(PageMessage::Login(LoginData {
                     email: email.clone(),
                     password: password.clone()
+                }))
+            ]
+            .into(),
+            Page::Register {
+                username,
+                email,
+                password,
+                confirm_password,
+            } => column![
+                text_input("Username", &username).on_input(PageMessage::Username),
+                text_input("Email", &email).on_input(PageMessage::Email),
+                text_input("Password", &password)
+                    .password()
+                    .on_input(PageMessage::Password),
+                text_input("Confirm password", &confirm_password)
+                    .password()
+                    .on_input(PageMessage::ConfirmPassword),
+                button("Register").on_press(PageMessage::Register(RegisterData {
+                    username: username.clone(),
+                    email: email.clone(),
+                    password: password.clone(),
+                    confirm_password: confirm_password.clone(),
                 }))
             ]
             .into(),
@@ -127,8 +231,12 @@ enum PageMessage {
     Search(String),
     Login(LoginData),
     LoggedIn(Result<LoginResult, LoginError>),
+    Username(String),
     Email(String),
     Password(String),
+    ConfirmPassword(String),
+    Register(RegisterData),
+    Registered(Result<LoginResult, LoginError>),
 }
 
 struct FilmForum {
@@ -146,7 +254,7 @@ impl Application for FilmForum {
     type Theme = Theme;
     type Flags = ();
 
-    fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
+    fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         (
             FilmForum {
                 pages: Pages::new(),
