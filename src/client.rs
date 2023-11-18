@@ -4,7 +4,7 @@ use models::film::Film;
 use models::user::LoginResult;
 
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
 pub enum SearchError {}
@@ -33,37 +33,13 @@ pub enum LoginError {
 
 pub async fn login(email: String, password: String) -> Result<LoginResult, LoginError> {
     let url = "http://127.0.0.1:5105/login";
-    let client = reqwest::Client::new();
 
     let login_json = json!({
         "email": email.as_str(),
         "password": password.as_str()
     });
 
-    let request = client
-        .post(url)
-        .header(ACCEPT, "*/*")
-        .header(CONTENT_TYPE, "application/json")
-        .body(login_json.to_string())
-        .send()
-        .await;
-
-    if let Err(_) = request {
-        return Err(LoginError::ConnectionError);
-    }
-
-    let content = request.unwrap().text().await;
-
-    if let Err(_) = content {
-        return Err(LoginError::ConnectionError);
-    }
-
-    let result = content.unwrap();
-
-    match serde_json::from_str(result.as_str()) {
-        Ok(obj) => Ok(obj),
-        Err(_) => Err(LoginError::CredentialsError(result)),
-    }
+    user_request(url, login_json).await
 }
 
 pub async fn register(
@@ -73,20 +49,25 @@ pub async fn register(
     confirm_password: String,
 ) -> Result<LoginResult, LoginError> {
     let url = "http://127.0.0.1:5105/register";
-    let client = reqwest::Client::new();
 
-    let login_json = json!({
+    let register_json = json!({
         "username": username.as_str(),
         "email": email.as_str(),
         "password": password.as_str(),
-        "confirmPassword": confirm_password.as_str()
+        "confirmPassword": confirm_password.as_str(),
     });
+
+    user_request(url, register_json).await
+}
+
+async fn user_request(url: &str, data: Value) -> Result<LoginResult, LoginError> {
+    let client = reqwest::Client::new();
 
     let request = client
         .post(url)
         .header(ACCEPT, "*/*")
         .header(CONTENT_TYPE, "application/json")
-        .body(login_json.to_string())
+        .body(data.to_string())
         .send()
         .await;
 

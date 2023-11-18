@@ -12,20 +12,6 @@ fn main() -> iced::Result {
     FilmForum::run(Settings::default())
 }
 
-#[derive(Debug, Clone)]
-struct LoginData {
-    email: String,
-    password: String,
-}
-
-#[derive(Debug, Clone)]
-struct RegisterData {
-    username: String,
-    email: String,
-    password: String,
-    confirm_password: String,
-}
-
 struct Pages {
     pages: Vec<Page>,
     current: usize,
@@ -55,7 +41,7 @@ impl Pages {
     }
 
     fn update(&mut self, msg: PageMessage) -> iced::Command<PageMessage> {
-        self.pages[self.current].update(msg)
+        self.pages[self.current].update(msg, &mut self.current)
     }
 
     fn view(&self) -> Element<PageMessage> {
@@ -81,7 +67,7 @@ enum Page {
 }
 
 impl Page {
-    fn update(&mut self, msg: PageMessage) -> iced::Command<PageMessage> {
+    fn update(&mut self, msg: PageMessage, current_page: &mut usize) -> iced::Command<PageMessage> {
         match msg {
             PageMessage::SearchFound(Ok(result)) => {
                 if let Page::Search { films, .. } = self {
@@ -97,10 +83,9 @@ impl Page {
 
                 Command::perform(client::search(text_query), PageMessage::SearchFound)
             }
-            PageMessage::Login(data) => Command::perform(
-                client::login(data.email, data.password),
-                PageMessage::LoggedIn,
-            ),
+            PageMessage::Login(email, password) => {
+                Command::perform(client::login(email, password), PageMessage::LoggedIn)
+            }
             PageMessage::Email(_email) => {
                 if let Page::Login { email, .. } = self {
                     *email = _email;
@@ -149,19 +134,14 @@ impl Page {
                 }
                 Command::none()
             }
-            PageMessage::Register(data) => Command::perform(
-                client::register(
-                    data.username,
-                    data.email,
-                    data.password,
-                    data.confirm_password,
-                ),
+            PageMessage::Register(username, email, password, confirm_password) => Command::perform(
+                client::register(username, email, password, confirm_password),
                 PageMessage::Registered,
             ),
             PageMessage::Registered(result) => {
                 match result {
                     Ok(data) => {
-                        println!("JWT: {}", data.jwt);
+                        *current_page = 0;
                     }
                     Err(LoginError::CredentialsError(field)) => {
                         println!("{}", field);
@@ -183,10 +163,7 @@ impl Page {
                 text_input("Password", &password)
                     .password()
                     .on_input(PageMessage::Password),
-                button("Login").on_press(PageMessage::Login(LoginData {
-                    email: email.clone(),
-                    password: password.clone()
-                }))
+                button("Login").on_press(PageMessage::Login(email.clone(), password.clone()))
             ]
             .into(),
             Page::Register {
@@ -203,12 +180,12 @@ impl Page {
                 text_input("Confirm password", &confirm_password)
                     .password()
                     .on_input(PageMessage::ConfirmPassword),
-                button("Register").on_press(PageMessage::Register(RegisterData {
-                    username: username.clone(),
-                    email: email.clone(),
-                    password: password.clone(),
-                    confirm_password: confirm_password.clone(),
-                }))
+                button("Register").on_press(PageMessage::Register(
+                    username.clone(),
+                    email.clone(),
+                    password.clone(),
+                    confirm_password.clone()
+                ))
             ]
             .into(),
             Page::Search { query, films } => {
@@ -229,13 +206,13 @@ impl Page {
 enum PageMessage {
     SearchFound(Result<Vec<Film>, SearchError>),
     Search(String),
-    Login(LoginData),
+    Login(String, String),
     LoggedIn(Result<LoginResult, LoginError>),
     Username(String),
     Email(String),
     Password(String),
     ConfirmPassword(String),
-    Register(RegisterData),
+    Register(String, String, String, String),
     Registered(Result<LoginResult, LoginError>),
 }
 
