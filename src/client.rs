@@ -9,9 +9,16 @@ use serde_json::{json, Value};
 #[derive(Debug, Clone)]
 pub enum SearchError {}
 
-pub async fn search(query: String) -> Result<Vec<Film>, SearchError> {
+pub async fn search(query: String, jwt: String) -> Result<Vec<Film>, SearchError> {
     let url = format!("http://127.0.0.1:5105/api/film/search/{query}");
-    let films_result = match reqwest::get(url).await {
+    let client = reqwest::Client::new();
+
+    let films_result = match client
+        .get(url)
+        .header("Authorization", format!("Bearer {jwt}"))
+        .send()
+        .await
+    {
         Ok(response) => match response.text().await {
             Ok(content) => {
                 let films: Vec<Film> = serde_json::from_str(content.as_str()).unwrap_or(vec![]);

@@ -19,9 +19,10 @@ enum PageState {
     SearchPage,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PageController {
     current: usize,
+    jwt: String,
 }
 
 impl PageController {
@@ -42,7 +43,10 @@ struct Pages {
 impl Pages {
     fn new() -> Pages {
         Pages {
-            controller: PageController { current: 0 },
+            controller: PageController {
+                current: 0,
+                jwt: String::new(),
+            },
             pages: vec![
                 Page::Login {
                     email: String::new(),
@@ -107,7 +111,10 @@ impl Page {
                     *query = text_query.clone();
                 }
 
-                Command::perform(client::search(text_query), PageMessage::SearchFound)
+                Command::perform(
+                    client::search(text_query, page_controller.jwt.clone()),
+                    PageMessage::SearchFound,
+                )
             }
             PageMessage::Login(email, password) => {
                 Command::perform(client::login(email, password), PageMessage::LoggedIn)
@@ -132,7 +139,11 @@ impl Page {
             }
             PageMessage::LoggedIn(result) => {
                 match result {
-                    Ok(data) => page_controller.change_page(PageState::SearchPage),
+                    Ok(data) => {
+                        page_controller.jwt = data.jwt;
+                        page_controller.change_page(PageState::SearchPage)
+                    }
+
                     Err(LoginError::CredentialsError(field)) => {
                         println!("{}", field);
                     }
@@ -164,7 +175,10 @@ impl Page {
             ),
             PageMessage::Registered(result) => {
                 match result {
-                    Ok(data) => page_controller.change_page(PageState::SearchPage),
+                    Ok(data) => {
+                        page_controller.jwt = data.jwt;
+                        page_controller.change_page(PageState::SearchPage)
+                    }
                     Err(LoginError::CredentialsError(field)) => {
                         println!("{}", field);
                     }
